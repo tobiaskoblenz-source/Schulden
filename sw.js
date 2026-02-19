@@ -1,4 +1,4 @@
-const CACHE_NAME = "schulden-manager-v100";
+const CACHE_NAME = "schulden-manager-v300";
 
 const ASSETS = [
   "./",
