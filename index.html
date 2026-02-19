@@ -3,14 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#0f172a">
-
-<!-- iOS PWA -->
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="icon-192.png">
-
 <title>Schulden Manager – Dual View</title>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -227,6 +219,20 @@ body.modalOpen .mobileBottomNav{display:none !important;}
 <div class="card">
   <h2 style="text-align:center;margin-top:0;">Schulden Manager</h2>
 
+
+<div class="card" id="authCard" style="max-width:520px;margin:0 auto 20px;">
+  <h3 style="margin:0 0 10px 0;">Cloud Sync</h3>
+  <input id="authEmail" type="email" placeholder="E-Mail" style="width:calc(100% - 32px);">
+  <input id="authPass" type="password" placeholder="Passwort" style="width:calc(100% - 32px);">
+  <div class="actionRow" style="margin-top:8px;">
+    <button id="btnRegister" type="button">Registrieren</button>
+    <button id="btnLogin" type="button">Login</button>
+    <button id="btnLogout" class="secondary" type="button">Logout</button>
+  </div>
+  <div id="authStatus" style="margin-top:10px;color:var(--muted);">Nicht eingeloggt</div>
+</div>
+
+
   <div class="viewSwitch">
     <button id="btnDesktop" class="secondary" type="button">🖥 Desktop</button>
     <button id="btnMobile" class="secondary" type="button">📱 Handy</button>
@@ -328,6 +334,13 @@ body.modalOpen .mobileBottomNav{display:none !important;}
 <script>
 /* ---------- State ---------- */
 let debts = [];
+
+window.__setDebtsFromCloud = function(cloudDebts){
+  debts = Array.isArray(cloudDebts) ? cloudDebts : [];
+  save();
+  render();
+};
+
 try {
   const raw = localStorage.getItem("godmode_debts");
   debts = raw ? JSON.parse(raw) : [];
@@ -345,7 +358,12 @@ if(localStorage.getItem("godmode_dark") === "1"){
   document.body.classList.add("dark");
 }
 
-function save(){ localStorage.setItem("godmode_debts", JSON.stringify(debts)); }
+function save(){
+  localStorage.setItem("godmode_debts", JSON.stringify(debts));
+  if (window.__saveDebtsToCloud) {
+    window.__saveDebtsToCloud(debts).catch(console.error);
+  }
+}
 
 /* ---------- View switch ---------- */
 function setView(v){
@@ -759,10 +777,73 @@ render();
 })();
 </script>
 
-<script>
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js").catch(console.error);
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+  import {
+    getAuth,
+    onAuthStateChanged,
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    signOut
+  } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+  import {
+    getFirestore,
+    doc,
+    getDoc,
+    setDoc
+  } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCWAvq7GuEhF2jaL8xFrb_MJ34_dZD0Hkk",
+    authDomain: "schulden-36186.firebaseapp.com",
+    projectId: "schulden-36186",
+    storageBucket: "schulden-36186.firebasestorage.app",
+    messagingSenderId: "483402986505",
+    appId: "1:483402986505:web:1bf7cafce628bbd486b4d8"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  const $ = (id) => document.getElementById(id);
+
+  async function loadFromCloud(uid){
+    const ref = doc(db, "users", uid);
+    const snap = await getDoc(ref);
+    if (snap.exists() && window.__setDebtsFromCloud) {
+      window.__setDebtsFromCloud(snap.data().debts || []);
+    }
   }
+
+  window.__saveDebtsToCloud = async (debts) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const ref = doc(db, "users", user.uid);
+    await setDoc(ref, { debts, updatedAt: Date.now() }, { merge: true });
+  };
+
+  $("btnRegister").onclick = async () => {
+    await createUserWithEmailAndPassword(auth, $("authEmail").value, $("authPass").value);
+  };
+
+  $("btnLogin").onclick = async () => {
+    await signInWithEmailAndPassword(auth, $("authEmail").value, $("authPass").value);
+  };
+
+  $("btnLogout").onclick = async () => {
+    await signOut(auth);
+  };
+
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      $("authStatus").textContent = "Eingeloggt: " + user.email;
+      await loadFromCloud(user.uid);
+    } else {
+      $("authStatus").textContent = "Nicht eingeloggt";
+    }
+  });
 </script>
 
 </body>
