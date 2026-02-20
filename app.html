@@ -840,3 +840,21 @@ if (__b2) __b2.addEventListener("click", __logout);
 const __b3 = document.getElementById("navLogout");
 if (__b3) __b3.addEventListener("click", __logout);
 
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  // Logout wiring (desktop / modal / bottom nav)
+  const __logout = () => {
+    if (window.logout) window.logout();
+  };
+
+  const __b1 = document.getElementById("btnLogoutTop");
+  if (__b1) __b1.addEventListener("click", __logout);
+
+  const __b2 = document.getElementById("m_logout");
+  if (__b2) __b2.addEventListener("click", __logout);
+
+  const __b3 = document.getElementById("navLogout");
+  if (__b3) __b3.addEventListener("click", __logout);
+});
+</script>
+
